@@ -1,12 +1,12 @@
-package game_handlers
+package handlers
 
 import (
 	"context"
 	"encoding/json"
 	game_models "example/Card-Game-Backend/models"
 	utils "example/Card-Game-Backend/utils"
-	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
@@ -15,34 +15,47 @@ import (
 var ctx = context.Background()
 var redisClient = utils.Client()
 
-func GetCurrentGame(c*gin.Context){
+func GetCurrentGame(c *gin.Context) {
 	email := c.Param("email")
-	// game := Game{EMAIL: email, DECK: "deck"}
-	// c.JSON(http.StatusOK, game)
 
-	val, err := redisClient.Get(ctx,email).Result()
-	if err!=nil{
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+	val, err := redisClient.Get(ctx, email).Result()
+
+	if err != nil {
+			if err.Error() == "redis: nil" {
+					// Key not found in Redis, continue with other handlers
+					c.Next()
+					return
+			} else {
+					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+					return
+			}
 	}
 
-	// var game Game
 	var game game_models.Game
-
 	err = json.Unmarshal([]byte(val), &game)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
 	}
 
-	leaderboard, err := redisClient.ZRevRangeWithScores(ctx,"leaderboard",0,2).Result()
+	var gameResponse game_models.GameResponse	
 
-	if err!=nil{
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+	gameResponse.EMAIL = game.EMAIL
+	gameResponse.POINTER = game.POINTER
+	gameResponse.CURRENT_HIGH_SCORE = game.CURRENT_HIGH_SCORE
+	if(game.POINTER == -1 || game.POINTER == -2){
+		gameResponse.TOP_CARD = "start"
+		gameResponse.DEFFUSECARDS = 0
+		gameResponse.BOMBCARDS = 0
+	}else{
+		gameResponse.TOP_CARD = strings.Split(game.DECK,",")[game.POINTER]
 	}
+	gameResponse.BOMBCARDS = game.BOMBCARDS
+	gameResponse.DEFFUSECARDS = game.DEFFUSECARDS
 
-	c.JSON(http.StatusOK, gin.H{"game": game, "leaderboard": leaderboard})
+
+	c.JSON(http.StatusOK, gameResponse)
+	c.Abort()
 }
 
 func StartGame(c*gin.Context){
@@ -71,7 +84,7 @@ func StartGame(c*gin.Context){
 	// game := Game{EMAIL: email, DECK: "deck"}
 	deck := utils.GenerateNewDeck()
 
-	game := game_models.Game{EMAIL: email, DECK: deck, POINTER: 0, CURRENT_HIGH_SCORE: highScore}
+	game := game_models.Game{EMAIL: email, DECK: deck, POINTER: -1, CURRENT_HIGH_SCORE: highScore,BOMBCARDS: 0,DEFFUSECARDS: 0}
 
 	c.Set("game", game)
 
@@ -97,11 +110,23 @@ func MovePointer(c*gin.Context){
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		game.POINTER++
-		if(game.POINTER >= 5){
-			game.POINTER = 0
-			game.CURRENT_HIGH_SCORE++
+		if(game.POINTER != -2){
+
+			game.POINTER++
+			if(game.POINTER >= 5){
+				game.POINTER = -2
+				game.BOMBCARDS = 0
+				game.DEFFUSECARDS = 0
+				game.CURRENT_HIGH_SCORE++
+				}else{
+					if(strings.Split(game.DECK,",")[game.POINTER] == "bomb"){
+						game.BOMBCARDS++
+						}else if(strings.Split(game.DECK,",")[game.POINTER] == "defuse"){
+							game.DEFFUSECARDS++
+						}
+					}
 		}
+
 		c.Set("game", game)
 		c.Next()	
 	}else{
@@ -116,11 +141,8 @@ func SaveGame(c*gin.Context){
 
 	value, exists := c.Get("game")
 	if !exists {
-		if err:=c.BindJSON(&game); err!=nil{
-			fmt.Println("No Body")
-			c.JSON(http.StatusBadRequest, gin.H{"error": "game not found"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "game not found"})
 		return
-		}
 	}else{
 		game = value.(game_models.Game)
 	}
@@ -145,5 +167,20 @@ func SaveGame(c*gin.Context){
 		return
 	}
 
-	c.JSON(http.StatusOK, game)
+	var gameResponse game_models.GameResponse	
+
+	gameResponse.EMAIL = game.EMAIL
+	gameResponse.POINTER = game.POINTER
+	gameResponse.CURRENT_HIGH_SCORE = game.CURRENT_HIGH_SCORE
+	if(game.POINTER == -1 || game.POINTER == -2){
+		gameResponse.TOP_CARD = "start"
+		gameResponse.DEFFUSECARDS = 0
+		gameResponse.BOMBCARDS = 0
+	}else{
+		gameResponse.TOP_CARD = strings.Split(game.DECK,",")[game.POINTER]
+	}
+	gameResponse.BOMBCARDS = game.BOMBCARDS
+	gameResponse.DEFFUSECARDS = game.DEFFUSECARDS
+	
+	c.JSON(http.StatusOK, gameResponse)
 }

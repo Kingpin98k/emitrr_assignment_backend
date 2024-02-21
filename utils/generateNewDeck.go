@@ -7,7 +7,7 @@ import (
 )
 
 func GenerateNewDeck() string {
-	availableCards := []string{"cat", "defuse", "exploding_kitten", "shuffle"}
+	availableCards := []string{"cat", "defuse", "bomb", "shuffle"}
 	deckSize := 5
 	deck := make([]string, deckSize)
 

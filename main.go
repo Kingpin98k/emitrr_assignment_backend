@@ -1,14 +1,20 @@
 package main
 
 import (
-	game_handlers "example/Card-Game-Backend/handlers"
+	handlers "example/Card-Game-Backend/handlers"
+	"log"
 
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
 func main(){
-	router := gin.Default()
 
+	if err := godotenv.Load(); err != nil {
+		log.Fatalf("Error loading .env file: %v", err)
+}
+
+	router := gin.Default()
 	
 	// Enable CORS middleware
 	router.Use(func(c *gin.Context) {
@@ -27,10 +33,10 @@ func main(){
 			"message": "Welcome to the Card Game API",
 		})
 	})
-	router.GET("/currentGame/:email",game_handlers.GetCurrentGame)
-	router.POST("/startGame/:email",game_handlers.StartGame,game_handlers.SaveGame)
-	router.POST("/drawCard/:email",game_handlers.MovePointer,game_handlers.SaveGame)
+	router.GET("/currentGame/:email",handlers.GetCurrentGame,handlers.StartGame,handlers.SaveGame)
+	router.POST("/startGame/:email",handlers.StartGame,handlers.SaveGame)
+	router.POST("/drawCard/:email",handlers.MovePointer,handlers.SaveGame)
+	router.GET("/leaderboard",handlers.GetLeaderboard)
 
-
-	router.Run("localhost:8080")
+	router.Run(":8080")
 }
