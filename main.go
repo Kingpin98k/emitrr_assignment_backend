@@ -40,12 +40,10 @@ func main() {
 	router.POST("/drawCard/:email", handlers.MovePointer, handlers.SaveGame)
 	router.GET("/leaderboard", handlers.GetLeaderboard)
 
-	// Get the host and port from environment variables or use default values
-	host := envOr("0.0.0.0")
 	port := envOr("8080")
 
 	server := &http.Server{
-		Addr:    host + ":" + port, // Construct host and port
+		Addr:    ":" + port, // Construct host and port
 		Handler: router,
 	}
 
